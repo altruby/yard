@@ -38,9 +38,9 @@ module YARD::CodeObjects
     # @return [Hash] a list of methods
     attr_reader :attributes
 
-    # A hash containing two keys, :class and :instance, each containing
-    # a hash of objects and their alias names.
-    # @return [Hash] a list of methods
+    # Maps alias method objects to the names of the methods they alias.
+    # Class and instance aliases share this hash; each key records its scope.
+    # @return [Hash{MethodObject => Symbol}] alias methods mapped to their target names
     attr_reader :aliases
 
     # Class mixins
@@ -143,10 +143,12 @@ module YARD::CodeObjects
     # @see #meths
     def included_meths(opts = {})
       opts = SymbolHash[:scope => [:instance, :class]].update(opts)
+      # Mixins already being expanded further up, so include cycles terminate.
+      visited = (opts[:visited] || []) + [self]
       [opts[:scope]].flatten.map do |scope|
         mixins(scope).inject([]) do |list, mixin|
-          next list if mixin.is_a?(Proxy)
-          arr = mixin.meths(opts.merge(:scope => :instance)).reject do |o|
+          next list if mixin.is_a?(Proxy) || visited.include?(mixin)
+          arr = mixin.meths(opts.merge(:scope => :instance, :visited => visited)).reject do |o|
             next false if opts[:all]
             child(:name => o.name, :scope => scope) || list.find {|o2| o2.name == o.name }
           end
